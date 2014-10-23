@@ -8,12 +8,14 @@ class Twitters
   def self.execute
     minutes = get_minutes
     current_tweets = Array.new
-    # Look at tweets from the whole world
-    client.filter(:locations => "-180,-90,180,90") do |tweet|
-      puts "Retweet count: #{tweet.retweet_count}"
-      current_tweets << tweet
-      current_tweets = top_ten(current_tweets, minutes)
-      current_tweets.each {|t| puts "#{t.text} (Retweets: #{t.retweet_count})"}
+
+    client.sample do |object|
+      is_tweet = object.is_a?(Twitter::Tweet)
+      if(is_tweet && object.retweeted_status?)
+        current_tweets << object
+        current_tweets = top_ten(current_tweets, minutes)
+        current_tweets.each {|t| puts "#{t.text} (Retweets: #{t.retweeted_status.retweet_count})"}
+      end
     end
   end
 
@@ -46,7 +48,7 @@ class Twitters
     start_time = now.advance(:minutes => - minutes)
     puts "*"*20
     puts "Top 10 Tweets from #{start_time} to #{now}"
-    arry.select{|t| t.created_at >= start_time}.sort_by{|t| t.retweet_count}.reverse.take(10)
+    arry.select{|t| t.created_at >= start_time}.sort_by{|t| t.retweeted_status.retweet_count}.reverse.take(10)
   end
 end
 
