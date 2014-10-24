@@ -5,21 +5,51 @@ require 'dotenv'
 Dotenv.load
 
 class Twitters
+  TOP_X = 10
+  attr_accessor :header_text
+
   def self.execute
-    minutes = get_minutes
+    @minutes = get_minutes
     current_tweets = Array.new
 
     client.sample do |object|
       is_tweet = object.is_a?(Twitter::Tweet)
-      if(is_tweet && object.retweeted_status?)
-        current_tweets << object
-        current_tweets = top_ten(current_tweets, minutes)
-        current_tweets.each {|t| puts "#{t.text} (Retweets: #{t.retweeted_status.retweet_count})"}
+      if(is_tweet)
+        current_tweets << process_tweet(object)
+        current_tweets = remove_old_tweets(current_tweets)
+        top_tweets = top(current_tweets)
+        if top_tweets.length >= 10
+          display_top_tweets(top_tweets)
+        end
       end
     end
   end
 
   private
+  def self.process_tweet(object)
+    text = (object.retweeted_status?)? object.retweeted_status.text : object.text
+    time = (object.created?)? object.created_at : DateTime.now
+    {:text => text, :time => time}
+  end
+
+  def self.display_top_tweets(tweets)
+    puts "*"*20
+    puts @header_text
+    puts "*"*20
+    tweets.each_with_index do |t, index| 
+      puts "##{index + 1}, #{t[:count]} retweets:"
+      puts t[:text]
+      puts "-"*10
+    end
+  end
+
+  def self.remove_old_tweets(tweets)
+    now = DateTime.now
+    start_time = now.advance(:minutes => - @minutes)
+    @header_text = "Tweets between #{start_time} and #{now}"
+    tweets.select{|t| t[:time] >= start_time}
+  end
+
   def self.get_minutes
     puts "Enter number of minutes to look at tweets:"
     minutes = gets.chomp.to_i
@@ -43,12 +73,8 @@ class Twitters
     end
   end
 
-  def self.top_ten(arry, minutes)
-    now = DateTime.now
-    start_time = now.advance(:minutes => - minutes)
-    puts "*"*20
-    puts "Top 10 Tweets from #{start_time} to #{now}"
-    arry.select{|t| t.created_at >= start_time}.sort_by{|t| t.retweeted_status.retweet_count}.reverse.take(10)
+  def self.top(arry)
+    arry.group_by{|t| t[:text]}.map{|key, array| {:text=>array[0][:text], :count=>array.length}}.sort_by{|t| t[:count]}.reverse.take(TOP_X)
   end
 end
 
